@@ -24,6 +24,19 @@ func (r *RandomInc) Read(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// reused from wg-lite git code
+func GenBadPriv() (k *big.Int) {
+	k = new(big.Int).SetInt64(32) // exact value of k can be changed
+	return
+}
+func GenerateKey(c elliptic.Curve) *ecdsa.PrivateKey {
+	k := GenBadPriv()
+	priv := new(ecdsa.PrivateKey)
+	priv.PublicKey.Curve = c
+	priv.D = k
+	priv.PublicKey.X, priv.PublicKey.Y = c.ScalarBaseMult(k.Bytes())
+	return priv
+}
 func hashToInt(hash []byte, c elliptic.Curve) *big.Int {
 	orderBits := c.Params().N.BitLen()
 	orderBytes := (orderBits + 7) / 8
@@ -151,10 +164,8 @@ func main() {
 	rngR := new(RandomInc)
 	*rngR = RandomInc(1)
 	var cs1, cs2 *noise.CipherState
-	ecdsakey := new(ecdsa.PrivateKey)
-	ecdsakey.PublicKey.Curve = c
-	ecdsakey.D = x
-	ecdsakey.PublicKey.X, ecdsakey.PublicKey.Y = c.ScalarBaseMult(x.Bytes())
+
+	ecdsakey := GenerateKey(elliptic.P256())
 	hsR, _ := noise.NewHandshakeState(noise.Config{
 		CipherSuite:   cs,
 		Random:        rngR,
