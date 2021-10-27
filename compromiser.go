@@ -144,16 +144,16 @@ func protocolAttack(path string) []byte {
 		rInv = in.Inverse(signatureR[0])
 	}
 	// Compute k*s
-	kMulS := k.Mul(k, signatureS[0])
-	kMulSSubH := kMulS.Sub(kMulS, h_1)
-	// Compute x, which is the static private key of Server
-	x := rInv.Mul(rInv, kMulSSubH)
-	x.Mod(x, N)
+	k.Mul(k, signatureS[0])
+	k.Sub(k, h_1)
+	// Compute secretKey, which is the static private key of Server
+	secretKey := rInv.Mul(rInv, k)
+	secretKey.Mod(secretKey, N)
 
 	//fmt.Println("x: ", x)
 	// Compute static public key of Server
 	var privbytes [32]byte
-	pubkey, err := curve25519.X25519(x.FillBytes(privbytes[:]), curve25519.Basepoint)
+	pubkey, err := curve25519.X25519(secretKey.FillBytes(privbytes[:]), curve25519.Basepoint)
 	if err != nil {
 		fmt.Println("DH error")
 		os.Exit(0)
