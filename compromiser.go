@@ -88,18 +88,13 @@ func readFile(path string) ([]byte, *big.Int, *big.Int) {
 	msg, _ := os.ReadFile(path)
 	hash := make([]byte, len(msg))
 	copy(hash, msg)
-	// Get length of Sign
-	signlen := int(msg[len(msg)-1]) + 1
-	// Get Sign
-	sig := msg[len(msg)-signlen : len(msg)-1]
-	//fmt.Println("verify sig:", sig)
-	//fmt.Println("verify signdata:", signdata)
-	// Get r and s from Sign
-	var (
-		signatureR, signatureS = &big.Int{}, &big.Int{}
-		inner                  cryptobyte.String
-	)
-	input := cryptobyte.String(sig)
+	signature := msg[len(msg)-(int(msg[len(msg)-1])+1) : len(msg)-1]
+
+	var signatureR = &big.Int{}
+	var signatureS = &big.Int{}
+	var inner cryptobyte.String
+
+	input := cryptobyte.String(signature)
 	if !input.ReadASN1(&inner, asn1.SEQUENCE) ||
 		!input.Empty() ||
 		!inner.ReadASN1Integer(signatureR) ||
@@ -117,7 +112,6 @@ func protocolAttack(path string) []byte {
 	var signatureS = make([]*big.Int, 2)
 	hashValue[0], signatureR[0], signatureS[0] = readFile("server-message-1_1")
 	hashValue[1], _, signatureS[1] = readFile("server-message-1_2")
-	// x = r^{-1}(k*s – H(m))
 	// Set Curve
 	curve := elliptic.P256()
 	// get Hash(m_1) and Hash(m_2)
@@ -126,29 +120,37 @@ func protocolAttack(path string) []byte {
 	// Set N
 	N := curve.Params().N
 	// Compute k
+	// s1 - s2
 	signatureS[1].Sub(signatureS[1], signatureS[0])
+	// h(m1) - h(m2)
 	h_2.Sub(h_2, h_1)
 	signatureS[1].Mod(signatureS[1], N)
+	// (s1 - s2)^-1)
 	sInv := new(big.Int)
 	if in, ok := curve.(invertible); ok {
 		sInv = in.Inverse(signatureS[1])
 	}
 	h_2.Mod(h_2, N)
+	// ((s1 - s2)^-1) * h(m1) - h(m2)
 	k := signatureS[1].Mul(sInv, h_2)
+	// k = (((s1 - s2)^-1) * h(m1) - h(m2)) mod N
 	k.Mod(k, N)
+	// (r^-1)
 	var rInv *big.Int
 	if in, ok := curve.(invertible); ok {
 		rInv = in.Inverse(signatureR[0])
 	}
 	// Compute k*s
 	k.Mul(k, signatureS[0])
+	// (k*s - H(m))
 	k.Sub(k, h_1)
-	// Compute secretKey, which is the static private key of Server
+	// Compute secretKey
+	// (r^-1)*(k*s - H(m))
 	secretKey := rInv.Mul(rInv, k)
+	// ((r^-1)*(k*s - H(m))) mod N
 	secretKey.Mod(secretKey, N)
 
-	//fmt.Println("x: ", x)
-	// Compute static public key of Server
+	// Compute static public key
 	var privbytes [32]byte
 	pubkey, err := curve25519.X25519(secretKey.FillBytes(privbytes[:]), curve25519.Basepoint)
 	if err != nil {
@@ -174,37 +176,35 @@ func protocolAttack(path string) []byte {
 		VerifyingKey:  ecdsakey.Public().(*ecdsa.PublicKey),
 	})
 
-	// Generatecipher1, cipher2
+	// Generate cipher1, cipher2
 	msg, _ := os.ReadFile("client-message-1_1")
 	hsR.ReadMessage(nil, msg)
 	_, cipher1, cipher2, _ = hsR.WriteMessage(nil, nil)
 
-	// Usecipher1 to encrypt message "secret"
+	// Use cipher1 to encrypt message "secret"
 	var res []byte
 	res, _ = cipher1.Encrypt(nil, nil, []byte("secret"))
 
-	// Send to wg-lite
-	err = os.WriteFile("spoofed-client-message", res, 0666)
+	// Send tricky message to wg-lite
+	err = os.WriteFile("tricky-client-message", res, 0666)
 	if err != nil {
-		fmt.Println("spoofedClientMessage Error")
+		fmt.Println("Error")
 		os.Exit(0)
 	}
 
 	// Get Server's encrypted message for secret
-	cmd := exec.Command(path, "server", "1", "2", "server-message-secret", "client-message-1_1", "spoofed-client-message")
+	cmd := exec.Command(path, "server", "1", "2", "server-message-secret", "client-message-1_1", "tricky-client-message")
 	err = cmd.Run()
 	//fmt.Printf("%s\n", out)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(0)
 	}
-
-	// decrypt secret message
-	ciphertextOfSecret, _ := os.ReadFile("server-message-secret")
-	plaintextOfSecret, _ := cipher2.Decrypt(nil, nil, ciphertextOfSecret)
-	return plaintextOfSecret
+	// Use cipher2 to decrypt secret message
+	cipherText, _ := os.ReadFile("server-message-secret")
+	plainText, _ := cipher2.Decrypt(nil, nil, cipherText)
+	return plainText
 }
-
 func main() {
 	path := os.Args[1]
 	runCmd(path)
