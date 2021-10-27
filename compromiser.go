@@ -121,28 +121,26 @@ func protocolAttack(path string) []byte {
 	hashValue[1], _, signatureS[1] = readFile("server-message-1_2")
 	// x = r^{-1}(k*s – H(m))
 	// Set Curve
-	c := elliptic.P256()
+	curve := elliptic.P256()
 	// Set Hash(m_1) and Hash(m_2)
-	h_1 := hashToInt(hashValue[0], c)
-	h_2 := hashToInt(hashValue[1], c)
+	h_1 := hashToInt(hashValue[0], curve)
+	h_2 := hashToInt(hashValue[1], curve)
 	// Set N
-	N := c.Params().N
+	N := curve.Params().N
 	// Compute k
-	s2SubS1 := signatureS[1].Sub(signatureS[1], signatureS[0])
-	h2SubH1 := h_2.Sub(h_2, h_1)
-	s2SubS1.Mod(s2SubS1, N)
-	var rS2SubS1 *big.Int
-	if in, ok := c.(invertible); ok {
-		rS2SubS1 = in.Inverse(s2SubS1)
+	signatureS[1].Sub(signatureS[1], signatureS[0])
+	h_2.Sub(h_2, h_1)
+	signatureS[1].Mod(signatureS[1], N)
+	sInv := new(big.Int)
+	if in, ok := curve.(invertible); ok {
+		sInv = in.Inverse(signatureS[1])
 	}
-	h2SubH1.Mod(h2SubH1, N)
-	k := rS2SubS1.Mul(rS2SubS1, h2SubH1)
+	h_2.Mod(h_2, N)
+	k := signatureS[1].Mul(sInv, h_2)
 	k.Mod(k, N)
-	// k := new(big.Int)
-	// k.SetBytes([]byte("secure nonce"))
-	// Compute r^{-1}
+
 	var rInv *big.Int
-	if in, ok := c.(invertible); ok {
+	if in, ok := curve.(invertible); ok {
 		rInv = in.Inverse(signatureR[0])
 	}
 	// Compute k*s
