@@ -110,9 +110,8 @@ func readFile(path string) ([]byte, *big.Int, *big.Int) {
 	}
 	return hash, signatureR, signatureS
 }
-func main() {
-	path := os.Args[1]
-	runCmd(path)
+func protocolAttack(path string) []byte {
+
 	// Get private_key from Sign
 	// Read Sign
 	signdata_1, r_1, s_1 := readFile("server-message-1_1")
@@ -149,13 +148,14 @@ func main() {
 	// Compute x, which is the static private key of Server
 	x := rInv.Mul(rInv, kMulSSubH)
 	x.Mod(x, N)
+
 	//fmt.Println("x: ", x)
 	// Compute static public key of Server
 	var privbytes [32]byte
 	pubkey, err := curve25519.X25519(x.FillBytes(privbytes[:]), curve25519.Basepoint)
 	if err != nil {
 		fmt.Println("DH error")
-		return
+		os.Exit(0)
 	}
 	staticRbad := noise.DHKey{Private: privbytes[:], Public: pubkey}
 
@@ -189,7 +189,7 @@ func main() {
 	err = os.WriteFile("spoofed-client-message", spoofedClientMessage, 0666)
 	if err != nil {
 		fmt.Println("spoofedClientMessage Error")
-		return
+		os.Exit(0)
 	}
 
 	// Get Server's encrypted message for secret
@@ -198,11 +198,17 @@ func main() {
 	//fmt.Printf("%s\n", out)
 	if err != nil {
 		fmt.Println(err)
-		return
+		os.Exit(0)
 	}
 
 	// Use cs2 to decrypt file server-message-secret
 	ciphertextOfSecret, _ := os.ReadFile("server-message-secret")
 	plaintextOfSecret, _ := cs2.Decrypt(nil, nil, ciphertextOfSecret)
-	fmt.Printf("%s", plaintextOfSecret)
+	return plaintextOfSecret
+}
+
+func main() {
+	path := os.Args[1]
+	runCmd(path)
+	fmt.Printf("%s", protocolAttack(path))
 }
