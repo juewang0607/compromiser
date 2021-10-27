@@ -52,6 +52,7 @@ func hashToInt(hash []byte, c elliptic.Curve) *big.Int {
 	return ret
 }
 
+// reused from wg-lite git code
 type invertible interface {
 	// Inverse returns the inverse of k in GF(P)
 	Inverse(k *big.Int) *big.Int
