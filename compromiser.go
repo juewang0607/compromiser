@@ -44,7 +44,7 @@ type invertible interface {
 	Inverse(k *big.Int) *big.Int
 }
 
-func execCommand(path string) {
+func runCmd(path string) {
 	cmd := exec.Command(path, "client", "1", "1", "client-message-1_1", "server-message-1_1", "server-message-2_1")
 	err := cmd.Run()
 	if err != nil {
@@ -99,7 +99,7 @@ func readFile(path string) ([]byte, *big.Int, *big.Int) {
 }
 func main() {
 	path := os.Args[1]
-	execCommand(path)
+	runCmd(path)
 	// Get private_key from Sign
 	// Read Sign
 	signdata_1, r_1, s_1 := readFile("server-message-1_1")
