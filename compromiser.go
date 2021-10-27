@@ -112,8 +112,6 @@ func readFile(path string) ([]byte, *big.Int, *big.Int) {
 }
 func protocolAttack(path string) []byte {
 
-	// Get private_key from Sign
-	// Read Sign
 	var hashValue = make([][]byte, 2)
 	var signatureR = make([]*big.Int, 2)
 	var signatureS = make([]*big.Int, 2)
@@ -122,7 +120,7 @@ func protocolAttack(path string) []byte {
 	// x = r^{-1}(k*s – H(m))
 	// Set Curve
 	curve := elliptic.P256()
-	// Set Hash(m_1) and Hash(m_2)
+	// get Hash(m_1) and Hash(m_2)
 	h_1 := hashToInt(hashValue[0], curve)
 	h_2 := hashToInt(hashValue[1], curve)
 	// Set N
@@ -138,7 +136,6 @@ func protocolAttack(path string) []byte {
 	h_2.Mod(h_2, N)
 	k := signatureS[1].Mul(sInv, h_2)
 	k.Mod(k, N)
-
 	var rInv *big.Int
 	if in, ok := curve.(invertible); ok {
 		rInv = in.Inverse(signatureR[0])
@@ -164,7 +161,7 @@ func protocolAttack(path string) []byte {
 	cs := noise.NewCipherSuite(noise.DH25519, noise.CipherAESGCM, noise.HashSHA256)
 	rngR := new(RandomInc)
 	*rngR = RandomInc(1)
-	var cs1, cs2 *noise.CipherState
+	var cipher1, cipher2 *noise.CipherState
 
 	ecdsakey := GenerateKey(elliptic.P256())
 	hsR, _ := noise.NewHandshakeState(noise.Config{
@@ -177,17 +174,17 @@ func protocolAttack(path string) []byte {
 		VerifyingKey:  ecdsakey.Public().(*ecdsa.PublicKey),
 	})
 
-	// Generate cs1, cs2
-	clientMessage1, _ := os.ReadFile("client-message-1_1")
-	hsR.ReadMessage(nil, clientMessage1)
-	_, cs1, cs2, _ = hsR.WriteMessage(nil, nil)
+	// Generatecipher1, cipher2
+	msg, _ := os.ReadFile("client-message-1_1")
+	hsR.ReadMessage(nil, msg)
+	_, cipher1, cipher2, _ = hsR.WriteMessage(nil, nil)
 
-	// Use cs1 to encrypt message "secret"
-	var spoofedClientMessage []byte
-	spoofedClientMessage, _ = cs1.Encrypt(nil, nil, []byte("secret"))
+	// Usecipher1 to encrypt message "secret"
+	var res []byte
+	res, _ = cipher1.Encrypt(nil, nil, []byte("secret"))
 
 	// Send to wg-lite
-	err = os.WriteFile("spoofed-client-message", spoofedClientMessage, 0666)
+	err = os.WriteFile("spoofed-client-message", res, 0666)
 	if err != nil {
 		fmt.Println("spoofedClientMessage Error")
 		os.Exit(0)
@@ -204,7 +201,7 @@ func protocolAttack(path string) []byte {
 
 	// decrypt secret message
 	ciphertextOfSecret, _ := os.ReadFile("server-message-secret")
-	plaintextOfSecret, _ := cs2.Decrypt(nil, nil, ciphertextOfSecret)
+	plaintextOfSecret, _ := cipher2.Decrypt(nil, nil, ciphertextOfSecret)
 	return plaintextOfSecret
 }
 
