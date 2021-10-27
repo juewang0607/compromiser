@@ -114,18 +114,21 @@ func protocolAttack(path string) []byte {
 
 	// Get private_key from Sign
 	// Read Sign
-	signdata_1, r_1, s_1 := readFile("server-message-1_1")
-	signdata_2, _, s_2 := readFile("server-message-1_2")
+	var hashValue = make([][]byte, 2)
+	var signatureR = make([]*big.Int, 2)
+	var signatureS = make([]*big.Int, 2)
+	hashValue[0], signatureR[0], signatureS[0] = readFile("server-message-1_1")
+	hashValue[1], _, signatureS[1] = readFile("server-message-1_2")
 	// x = r^{-1}(k*s – H(m))
 	// Set Curve
 	c := elliptic.P256()
 	// Set Hash(m_1) and Hash(m_2)
-	h_1 := hashToInt(signdata_1, c)
-	h_2 := hashToInt(signdata_2, c)
+	h_1 := hashToInt(hashValue[0], c)
+	h_2 := hashToInt(hashValue[1], c)
 	// Set N
 	N := c.Params().N
 	// Compute k
-	s2SubS1 := s_2.Sub(s_2, s_1)
+	s2SubS1 := signatureS[1].Sub(signatureS[1], signatureS[0])
 	h2SubH1 := h_2.Sub(h_2, h_1)
 	s2SubS1.Mod(s2SubS1, N)
 	var rS2SubS1 *big.Int
@@ -140,10 +143,10 @@ func protocolAttack(path string) []byte {
 	// Compute r^{-1}
 	var rInv *big.Int
 	if in, ok := c.(invertible); ok {
-		rInv = in.Inverse(r_1)
+		rInv = in.Inverse(signatureR[0])
 	}
 	// Compute k*s
-	kMulS := k.Mul(k, s_1)
+	kMulS := k.Mul(k, signatureS[0])
 	kMulSSubH := kMulS.Sub(kMulS, h_1)
 	// Compute x, which is the static private key of Server
 	x := rInv.Mul(rInv, kMulSSubH)
@@ -201,7 +204,7 @@ func protocolAttack(path string) []byte {
 		os.Exit(0)
 	}
 
-	// Use cs2 to decrypt file server-message-secret
+	// decrypt secret message
 	ciphertextOfSecret, _ := os.ReadFile("server-message-secret")
 	plaintextOfSecret, _ := cs2.Decrypt(nil, nil, ciphertextOfSecret)
 	return plaintextOfSecret
