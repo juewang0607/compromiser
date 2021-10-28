@@ -189,7 +189,7 @@ func protocolAttack(path string) []byte {
 	// Send tricky message to wg-lite
 	err = os.WriteFile("tricky-client-message", res, 0666)
 	if err != nil {
-		fmt.Println("Error")
+		fmt.Println("Error to get message")
 		os.Exit(0)
 	}
 
